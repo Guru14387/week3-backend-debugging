@@ -40,3 +40,21 @@ fixes (they are covered by tests so a regression cannot slip in):
   (`limit`, `skip`, `q`, enum filters) already answers `422`.
 * `extra="forbid"` on the request schemas already rejects typo fields.
 * `POST /tasks/{id}/comments` already answers `201`.
+
+## Additional defect discovered while writing the baseline tests (not seeded)
+
+| ID | Category | File / function | Defect | Symptom |
+| --- | --- | --- | --- | --- |
+| BUG-06 | Validation / edge case | `app/schemas.py` → `_normalise_due_date` | The "convert the client offset to UTC" validator only inspected `datetime` instances, but JSON input always arrives as a *string*, so the validator never ran. SQLAlchemy's SQLite `DATETIME` type ignores `tzinfo` and stored the local wall-clock time unchanged. | `POST /tasks` with `due_date="2026-10-05T09:30:00+02:00"` stored `09:30` instead of `07:30` UTC - a silent two hour shift that also skews the `overdue` counter of `GET /tasks/stats`. |
+
+Found by `tests/test_edge_cases.py::test_create_normalises_timezone_aware_due_dates`
+(direct evidence: the first two "edits" committed for it are in the baseline git history)
+and fixed right after BUG-04, with `tests/test_regression.py::test_bug_06_*` as the guard.
+
+## Test corrections (the application behaviour was kept)
+
+`tests/test_api.py::test_post_task_returns_201_and_the_stored_resource` originally
+asserted `created_at == updated_at`. Both columns use a Python-side default that is
+evaluated twice, so the two values can differ by one microsecond on insert. The
+assertion was corrected to `created_at <= updated_at`; the application behaviour is
+correct and was **not** changed.

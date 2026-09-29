@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from fastapi.testclient import TestClient
 
@@ -67,7 +67,9 @@ def test_post_task_returns_201_and_the_stored_resource(client: TestClient) -> No
     assert body["priority"] == "high"
     assert body["due_date"] == "2026-10-05T09:30:00"
     assert body["comment_count"] == 0
-    assert body["created_at"] == body["updated_at"]
+    # Both columns use a Python-side default that is evaluated twice, so the two
+    # timestamps may differ by a microsecond on insert - they only have to be ordered.
+    assert datetime.fromisoformat(body["created_at"]) <= datetime.fromisoformat(body["updated_at"])
 
 
 def test_get_task_returns_200_with_the_expected_contract(client: TestClient, make_task) -> None:
