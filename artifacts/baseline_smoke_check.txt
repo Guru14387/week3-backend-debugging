@@ -1,0 +1,18 @@
+starting: C:\Program Files\Python314\python.exe -m uvicorn app.main:app --port 50119 (cwd=C:\D.T and Error Resolution\week3_backend_debugging)
+[PASS] uvicorn started and /health answered -> http://127.0.0.1:50119/health
+        payload: {'status': 'ok', 'service': 'Week3 Backend Debugging API', 'version': '1.0.0'}
+[PASS] OpenAPI document exposes every route -> ['/health', '/tasks', '/tasks/stats', '/tasks/{task_id}', '/tasks/{task_id}/comments']
+[FAIL] POST /tasks answers 201 -> HTTP 200
+[PASS] GET /tasks/{id} answers 200 -> HTTP 200
+[PASS] PATCH /tasks/{id} stores the new status -> HTTP 200
+[PASS] POST /tasks/{id}/comments answers 201 -> HTTP 201
+[PASS] GET /tasks?status=&q= applies both filters -> HTTP 200 total=1
+[PASS] GET /tasks/stats aggregates the backlog -> HTTP 200 {'total': 1, 'completed': 0, 'overdue': 0, 'completion_rate': 0.0, 'by_status': {'pending': 0, 'in_progress': 1, 'completed': 0}, 'by_priority': {'low': 0, 'medium': 0, 'high': 1}, 'total_comments': 1, 'average_comments_per_task': 1.0}
+[PASS] DELETE /tasks/{id} answers 204 -> HTTP 204
+[FAIL] GET /tasks/{id} answers 404 once deleted -> HTTP 500 {"detail":"Unable to retrieve task 1: No row was found when one was required"}
+[FAIL] GET /tasks/987654 answers a clean 404 -> HTTP 500 {"detail":"Unable to retrieve task 987654: No row was found when one was required"}
+--------------------------------------------------------------------------------
+checks failed: 3
+  - POST /tasks answers 201
+  - GET /tasks/{id} answers 404 once deleted
+  - GET /tasks/987654 answers a clean 404

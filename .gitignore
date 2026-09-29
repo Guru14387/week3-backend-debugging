@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Test / tooling caches
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Generated report artefact (the DOCX itself is committed on purpose)
+report/~$*.docx
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,23 @@
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra --strict-markers --strict-config"
+markers = [
+    "performance: regression tests that assert the number of emitted SQL statements",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+exclude = ["artifacts", "report"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "C4"]
+ignore = [
+    "B008", # FastAPI uses function calls (Depends/Query) as argument defaults
+    "E501", # line length is already handled by the formatter
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B011"]

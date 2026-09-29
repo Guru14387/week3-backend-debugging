@@ -1,0 +1,29 @@
+C:\Users\kolsu\AppData\Roaming\Python\Python314\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+  from starlette.testclient import TestClient as TestClient  # noqa
+====================================================================================================
+Week3 Backend Debugging API - defect reproduction script
+====================================================================================================
+
+BUG-01  Wrong status code when creating a task  ->  DEFECT REPRODUCED / FAIL
+    expected: POST /tasks -> HTTP 201 Created
+    observed: POST /tasks -> HTTP 200
+
+BUG-02  Update endpoint accepts invalid titles  ->  DEFECT REPRODUCED / FAIL
+    expected: PATCH title='' -> 422, PATCH title=null -> 422, stored title unchanged
+    observed: PATCH title='' -> HTTP 200, PATCH title=null -> HTTP 500, stored title=''
+
+BUG-03  Filters behave like OR and the search ignores the description  ->  DEFECT REPRODUCED / FAIL
+    expected: status=pending&priority=low -> 5 tasks (AND), q=burndown -> 6 tasks (description match)
+    observed: status=pending&priority=low -> 20 tasks, q=burndown -> 0 tasks
+
+BUG-04  Unknown task id returns 500 instead of 404  ->  DEFECT REPRODUCED / FAIL
+    expected: GET /tasks/987654 -> HTTP 404 {"detail":"Task 987654 not found"}
+    observed: GET /tasks/987654 -> HTTP 500 {"detail":"Unable to retrieve task 987654: No row was found when one w
+
+BUG-05  N+1 queries on the read endpoints  ->  DEFECT REPRODUCED / FAIL
+    expected: constant statement count: limit=1 equals limit=30 and stays <= 6, GET /tasks/stats <= 8
+    observed: limit=1 -> 3 statements, limit=30 -> 32 statements, stats -> 31 statements
+
+----------------------------------------------------------------------------------------------------
+checks: 5   passed: 0   failed: 5
+----------------------------------------------------------------------------------------------------
