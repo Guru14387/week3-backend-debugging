@@ -1,0 +1,21 @@
+C:\Users\kolsu\AppData\Roaming\Python\Python314\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+  from starlette.testclient import TestClient as TestClient  # noqa
+====================================================================================================
+Week3 Backend Debugging API - read endpoint benchmark
+seed: 200 tasks x 1 comment(s), in-memory SQLite, 5 timed repetitions per request
+====================================================================================================
+request                      status  SQL stmts   median ms    min ms    max ms
+------------------------------------------------------------------------------
+/tasks?limit=200                200        202        70.2      53.2      93.9
+/tasks/stats                    200        201        66.4      56.8      71.6
+/tasks/1                        200          2         7.4       4.9       7.7
+
+payload sanity checks
+------------------------------------------------------------------------------
+GET /tasks            -> total=200, items=200, comment_count of the first item=1
+GET /tasks/stats      -> total=200, total_comments=200, by_status={'pending': 67, 'in_progress': 67, 'completed': 66}
+
+verdict
+------------------------------------------------------------------------------
+statements for 'GET /tasks?limit=200' : 202
+N+1 pattern detected                          : YES

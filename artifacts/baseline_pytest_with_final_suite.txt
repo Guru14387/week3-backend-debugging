@@ -1,0 +1,618 @@
+..F.......F.F.F.........FF........F....F.......F.FFFFF...FF............. [ 70%]
+..FFFF...FFFFFF.FF...FF...F...                                           [100%]
+================================== FAILURES ===================================
+_____________ test_post_task_returns_201_and_the_stored_resource ______________
+
+client = <starlette.testclient.TestClient object at 0x000002495A6D1F90>
+
+    def test_post_task_returns_201_and_the_stored_resource(client: TestClient) -> None:
+        response = client.post(
+            "/tasks",
+            json={
+                "title": "Publish the debugging report",
+                "description": "Week 3 deliverable",
+                "priority": "high",
+                "due_date": "2026-10-05T09:30:00",
+            },
+        )
+    
+>       assert response.status_code == 201
+E       assert 200 == 201
+E        +  where 200 = <Response [200 OK]>.status_code
+
+tests\test_api.py:61: AssertionError
+_____________________ test_filters_are_combined_with_and ______________________
+
+client = <starlette.testclient.TestClient object at 0x000002495A786F10>
+make_task = <function make_task.<locals>.factory at 0x000002495A8200F0>
+
+    def test_filters_are_combined_with_and(client: TestClient, make_task) -> None:
+        """BUG-03 regression: ``status`` and ``priority`` must be intersected."""
+        make_task(title="A pending high", status="pending", priority="high")
+        make_task(title="B completed low", status="completed", priority="low")
+        make_task(title="C pending low", status="pending", priority="low")
+    
+        body = client.get("/tasks", params={"status": "pending", "priority": "low"}).json()
+    
+>       assert body["total"] == 1
+E       assert 3 == 1
+
+tests\test_api.py:152: AssertionError
+_____________________ test_search_matches_the_description _____________________
+
+client = <starlette.testclient.TestClient object at 0x000002495A858160>
+make_task = <function make_task.<locals>.factory at 0x000002495A8803B0>
+
+    def test_search_matches_the_description(client: TestClient, make_task) -> None:
+        """BUG-03 regression: ``q`` must also search the description column."""
+        make_task(title="Improve logging", description="Add structured events for the burndown chart")
+        make_task(title="Unrelated chore", description="nothing to see here")
+    
+        body = client.get("/tasks", params={"q": "burndown"}).json()
+    
+>       assert body["total"] == 1
+E       assert 0 == 1
+
+tests\test_api.py:173: AssertionError
+_________________ test_search_combines_with_the_other_filters _________________
+
+client = <starlette.testclient.TestClient object at 0x000002495A8588D0>
+make_task = <function make_task.<locals>.factory at 0x000002495A883B60>
+
+    def test_search_combines_with_the_other_filters(client: TestClient, make_task) -> None:
+        make_task(title="Deploy staging", status="pending", priority="high")
+        make_task(title="Deploy production", status="completed", priority="high")
+        make_task(title="Write release notes", status="pending", priority="low")
+    
+        body = client.get(
+            "/tasks",
+            params={"q": "deploy", "status": "pending", "priority": "high"},
+        ).json()
+    
+>       assert body["total"] == 1
+E       assert 3 == 1
+
+tests\test_api.py:195: AssertionError
+__________________ test_list_tasks_combines_filters_with_and __________________
+
+db_session = <sqlalchemy.orm.session.Session object at 0x000002495A5A6E40>
+make_task = <function make_task.<locals>.factory at 0x000002495A96AF00>
+
+    def test_list_tasks_combines_filters_with_and(db_session: Session, make_task) -> None:
+        """BUG-03 regression: two filters must be intersected, not unioned."""
+        make_task(title="pending high", status="pending", priority="high")
+        make_task(title="completed low", status="completed", priority="low")
+        make_task(title="pending low", status="pending", priority="low")
+    
+        items, total = crud.list_tasks(
+            db_session,
+            status=models.TaskStatus.PENDING,
+            priority=models.Priority.LOW,
+        )
+>       assert total == 1
+E       assert 3 == 1
+
+tests\test_crud.py:59: AssertionError
+_____________ test_list_tasks_search_covers_title_and_description _____________
+
+db_session = <sqlalchemy.orm.session.Session object at 0x000002495A5A6F90>
+make_task = <function make_task.<locals>.factory at 0x000002495A9C89E0>
+
+    def test_list_tasks_search_covers_title_and_description(db_session: Session, make_task) -> None:
+        """BUG-03 regression: ``q`` must not be limited to the title column."""
+        make_task(title="Refactor the report", description="Short note")
+        make_task(title="Unrelated", description="Mentions the sprint burndown")
+    
+        items, total = crud.list_tasks(db_session, q="burndown")
+>       assert total == 1
+E       assert 0 == 1
+
+tests\test_crud.py:69: AssertionError
+_________________ test_task_update_schema_rejects_blank_title _________________
+
+    def test_task_update_schema_rejects_blank_title() -> None:
+        """BUG-02 regression at schema level."""
+        for bad_title in ("", "   "):
+>           with pytest.raises(ValueError):
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE <class 'ValueError'>
+
+tests\test_crud.py:188: Failed
+____________ test_create_accepts_a_title_of_exactly_200_characters ____________
+
+client = <starlette.testclient.TestClient object at 0x000002495A85B9B0>
+
+    def test_create_accepts_a_title_of_exactly_200_characters(client: TestClient) -> None:
+>       assert client.post("/tasks", json={"title": "x" * 200}).status_code == 201
+E       AssertionError: assert 200 == 201
+E        +  where 200 = <Response [200 OK]>.status_code
+E        +    where <Response [200 OK]> = post('/tasks', json={'title': 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'})
+E        +      where post = <starlette.testclient.TestClient object at 0x000002495A85B9B0>.post
+
+tests\test_edge_cases.py:22: AssertionError
+_______________ test_create_normalises_timezone_aware_due_dates _______________
+
+client = <starlette.testclient.TestClient object at 0x000002495AAE0F30>
+
+    def test_create_normalises_timezone_aware_due_dates(client: TestClient) -> None:
+        response = client.post("/tasks", json={"title": "Valid", "due_date": "2026-10-05T09:30:00+02:00"})
+    
+>       assert response.status_code == 201
+E       assert 200 == 201
+E        +  where 200 = <Response [200 OK]>.status_code
+
+tests\test_edge_cases.py:50: AssertionError
+________ test_create_accepts_a_description_of_exactly_2000_characters _________
+
+client = <starlette.testclient.TestClient object at 0x000002495AAE1260>
+
+    def test_create_accepts_a_description_of_exactly_2000_characters(client: TestClient) -> None:
+>       assert client.post("/tasks", json={"title": "Valid", "description": "x" * 2000}).status_code == 201
+E       AssertionError: assert 200 == 201
+E        +  where 200 = <Response [200 OK]>.status_code
+E        +    where <Response [200 OK]> = post('/tasks', json={'description': 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx...xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx', 'title': 'Valid'})
+E        +      where post = <starlette.testclient.TestClient object at 0x000002495AAE1260>.post
+
+tests\test_edge_cases.py:59: AssertionError
+______________________ test_patch_rejects_blank_titles[] ______________________
+
+client = <starlette.testclient.TestClient object at 0x000002495AAE1590>
+make_task = <function make_task.<locals>.factory at 0x000002495AB4EA30>
+bad_title = ''
+
+    @pytest.mark.parametrize("bad_title", ["", "   "])
+    def test_patch_rejects_blank_titles(client: TestClient, make_task, bad_title: str) -> None:
+        """BUG-02 regression: an empty string must not blank out a stored title."""
+        task = make_task(title="Keep this title")
+    
+        response = client.patch(f"/tasks/{task.id}", json={"title": bad_title})
+    
+>       assert response.status_code == 422
+E       assert 200 == 422
+E        +  where 200 = <Response [200 OK]>.status_code
+
+tests\test_edge_cases.py:69: AssertionError
+____________________ test_patch_rejects_blank_titles[   ] _____________________
+
+client = <starlette.testclient.TestClient object at 0x000002495AAE17B0>
+make_task = <function make_task.<locals>.factory at 0x000002495ABA4BF0>
+bad_title = '   '
+
+    @pytest.mark.parametrize("bad_title", ["", "   "])
+    def test_patch_rejects_blank_titles(client: TestClient, make_task, bad_title: str) -> None:
+        """BUG-02 regression: an empty string must not blank out a stored title."""
+        task = make_task(title="Keep this title")
+    
+        response = client.patch(f"/tasks/{task.id}", json={"title": bad_title})
+    
+>       assert response.status_code == 422
+E       assert 200 == 422
+E        +  where 200 = <Response [200 OK]>.status_code
+
+tests\test_edge_cases.py:69: AssertionError
+_________________________ test_patch_trims_the_title __________________________
+
+client = <starlette.testclient.TestClient object at 0x000002495AAE1AE0>
+make_task = <function make_task.<locals>.factory at 0x000002495ABA6A30>
+
+    def test_patch_trims_the_title(client: TestClient, make_task) -> None:
+        """BUG-02 regression: patched titles get the same treatment as created ones."""
+        task = make_task(title="Before")
+    
+        response = client.patch(f"/tasks/{task.id}", json={"title": "   After   "})
+    
+        assert response.status_code == 200
+>       assert response.json()["title"] == "After"
+E       AssertionError: assert '   After   ' == 'After'
+E         
+E         - After
+E         +    After
+
+tests\test_edge_cases.py:80: AssertionError
+_______________________ test_patch_rejects_a_null_title _______________________
+
+client = <starlette.testclient.TestClient object at 0x000002495AAE1E10>
+make_task = <function make_task.<locals>.factory at 0x000002495ABD0930>
+
+    def test_patch_rejects_a_null_title(client: TestClient, make_task) -> None:
+        """BUG-02 regression: ``null`` used to reach the database and raise 500."""
+        task = make_task(title="Keep this title")
+    
+        response = client.patch(f"/tasks/{task.id}", json={"title": None})
+    
+>       assert response.status_code == 422
+E       assert 500 == 422
+E        +  where 500 = <Response [500 Internal Server Error]>.status_code
+
+tests\test_edge_cases.py:89: AssertionError
+__________________ test_unknown_task_id_returns_404_not_500 ___________________
+
+client = <starlette.testclient.TestClient object at 0x000002495AAE2CF0>
+
+    def test_unknown_task_id_returns_404_not_500(client: TestClient) -> None:
+        """BUG-04 regression: missing rows must map to 404, never to 500."""
+        response = client.get("/tasks/987654")
+    
+>       assert response.status_code == 404
+E       assert 500 == 404
+E        +  where 500 = <Response [500 Internal Server Error]>.status_code
+
+tests\test_edge_cases.py:118: AssertionError
+______________ test_error_responses_do_not_leak_internal_details ______________
+
+client = <starlette.testclient.TestClient object at 0x000002495AAE2E00>
+
+    def test_error_responses_do_not_leak_internal_details(client: TestClient) -> None:
+        """BUG-04 regression: the previous handler echoed the SQLAlchemy message."""
+        payload = client.get("/tasks/987654").text
+    
+>       assert "No row was found" not in payload
+E       assert 'No row was found' not in '{"detail":"...s required"}'
+E         
+E         'No row was found' is contained here:
+E           k 987654: No row was found when one was required"}
+E         ?           ++++++++++++++++
+
+tests\test_edge_cases.py:126: AssertionError
+__________________ test_unicode_payloads_are_stored_verbatim __________________
+
+client = <starlette.testclient.TestClient object at 0x000002495ACD0E20>
+
+    def test_unicode_payloads_are_stored_verbatim(client: TestClient) -> None:
+        response = client.post(
+            "/tasks",
+            json={
+                "title": "Réparer le cache d'import",
+                "description": "Vérifier les accents é è ê",
+            },
+        )
+    
+>       assert response.status_code == 201
+E       assert 200 == 201
+E        +  where 200 = <Response [200 OK]>.status_code
+
+tests\test_edge_cases.py:204: AssertionError
+________________ test_null_description_and_due_date_round_trip ________________
+
+client = <starlette.testclient.TestClient object at 0x000002495ACD0F30>
+
+    def test_null_description_and_due_date_round_trip(client: TestClient) -> None:
+        created = client.post("/tasks", json={"title": "Minimal task"})
+    
+>       assert created.status_code == 201
+E       assert 200 == 201
+E        +  where 200 = <Response [200 OK]>.status_code
+
+tests\test_edge_cases.py:213: AssertionError
+____________ test_list_statement_count_does_not_grow_with_the_page ____________
+
+client = <starlette.testclient.TestClient object at 0x000002495ACD1370>
+make_task = <function make_task.<locals>.factory at 0x000002495AD79C70>
+make_comment = <function make_comment.<locals>.factory at 0x000002495AD79DD0>
+query_log = ['SELECT count(*) AS count_1 \nFROM (SELECT tasks.id AS tasks_id, tasks.title AS tasks_title, tasks.description AS tas...s.body AS comments_body, comments.created_at AS comments_created_at \nFROM comments \nWHERE ? = comments.task_id', ...]
+
+    def test_list_statement_count_does_not_grow_with_the_page(
+        client: TestClient,
+        make_task,
+        make_comment,
+        query_log: list[str],
+    ) -> None:
+        for index in range(PAGE_SIZE_TASKS):
+            task = make_task(title=f"Task {index:03d}")
+            make_comment(task, body="first")
+            make_comment(task, body="second")
+    
+        query_log.clear()
+        small_page = client.get("/tasks", params={"limit": 5})
+        small_page_statements = len(query_log)
+    
+        query_log.clear()
+        full_page = client.get("/tasks", params={"limit": PAGE_SIZE_TASKS})
+        full_page_statements = len(query_log)
+    
+        print(
+            f"\n[tasks] limit=5 -> {small_page_statements} statements, "
+            f"limit={PAGE_SIZE_TASKS} -> {full_page_statements} statements"
+        )
+    
+        assert small_page.status_code == full_page.status_code == 200
+        assert small_page.json()["total"] == PAGE_SIZE_TASKS
+        assert all(item["comment_count"] == 2 for item in full_page.json()["items"])
+>       assert small_page_statements == full_page_statements
+E       assert 7 == 42
+
+tests\test_performance.py:54: AssertionError
+---------------------------- Captured stdout call -----------------------------
+
+[tasks] limit=5 -> 7 statements, limit=40 -> 42 statements
+_________________ test_statistics_statement_count_is_constant _________________
+
+client = <starlette.testclient.TestClient object at 0x000002495ACD17B0>
+make_task = <function make_task.<locals>.factory at 0x000002495ADA8040>
+make_comment = <function make_comment.<locals>.factory at 0x000002495ADA80F0>
+query_log = ['SELECT tasks.id AS tasks_id, tasks.title AS tasks_title, tasks.description AS tasks_description, tasks.status AS tas...s.body AS comments_body, comments.created_at AS comments_created_at \nFROM comments \nWHERE ? = comments.task_id', ...]
+
+    def test_statistics_statement_count_is_constant(
+        client: TestClient,
+        make_task,
+        make_comment,
+        query_log: list[str],
+    ) -> None:
+        for index in range(5):
+            make_comment(make_task(title=f"small backlog {index}"))
+    
+        query_log.clear()
+        client.get("/tasks/stats")
+        small_backlog_statements = len(query_log)
+    
+        for index in range(35):
+            make_task(title=f"large backlog {index}")
+    
+        query_log.clear()
+        response = client.get("/tasks/stats")
+        large_backlog_statements = len(query_log)
+    
+        print(
+            f"\n[stats] 5 tasks -> {small_backlog_statements} statements, "
+            f"40 tasks -> {large_backlog_statements} statements"
+        )
+    
+        assert response.status_code == 200
+        assert response.json()["total"] == 40
+        assert response.json()["total_comments"] == 5
+>       assert small_backlog_statements == large_backlog_statements
+E       assert 6 == 41
+
+tests\test_performance.py:86: AssertionError
+---------------------------- Captured stdout call -----------------------------
+
+[stats] 5 tasks -> 6 statements, 40 tasks -> 41 statements
+_________________ test_bug_01_post_tasks_answers_201_created __________________
+
+client = <starlette.testclient.TestClient object at 0x000002495AAE3F00>
+
+    def test_bug_01_post_tasks_answers_201_created(client: TestClient) -> None:
+        """Creating a resource must not answer ``200 OK``."""
+        response = client.post("/tasks", json={"title": "Created task"})
+    
+>       assert response.status_code == 201
+E       assert 200 == 201
+E        +  where 200 = <Response [200 OK]>.status_code
+
+tests\test_regression.py:16: AssertionError
+_______________ test_bug_02_update_payload_validates_the_title ________________
+
+client = <starlette.testclient.TestClient object at 0x000002495AAE3CE0>
+make_task = <function make_task.<locals>.factory at 0x000002495AD79DD0>
+
+    def test_bug_02_update_payload_validates_the_title(client: TestClient, make_task) -> None:
+        """A PATCH must not be able to blank, null or overflow a stored title."""
+        task = make_task(title="Stored title")
+    
+        for bad_payload in ({"title": ""}, {"title": "   "}, {"title": None}, {"title": "x" * 201}):
+            response = client.patch(f"/tasks/{task.id}", json=bad_payload)
+>           assert response.status_code == 422, f"payload {bad_payload} returned {response.status_code}"
+E           AssertionError: payload {'title': ''} returned 200
+E           assert 200 == 422
+E            +  where 200 = <Response [200 OK]>.status_code
+
+tests\test_regression.py:28: AssertionError
+___________________ test_bug_02_update_also_trims_the_title ___________________
+
+client = <starlette.testclient.TestClient object at 0x000002495AAE3680>
+make_task = <function make_task.<locals>.factory at 0x000002495AD58250>
+
+    def test_bug_02_update_also_trims_the_title(client: TestClient, make_task) -> None:
+        task = make_task(title="before")
+    
+        response = client.patch(f"/tasks/{task.id}", json={"title": "  after  "})
+    
+        assert response.status_code == 200
+>       assert response.json()["title"] == "after"
+E       AssertionError: assert '  after  ' == 'after'
+E         
+E         - after
+E         +   after
+
+tests\test_regression.py:38: AssertionError
+____ test_bug_03_filters_are_intersected_and_search_covers_the_description ____
+
+client = <starlette.testclient.TestClient object at 0x000002495AAE3790>
+make_task = <function make_task.<locals>.factory at 0x000002495AD01E80>
+
+    def test_bug_03_filters_are_intersected_and_search_covers_the_description(
+        client: TestClient,
+        make_task,
+    ) -> None:
+        """Filtering used to behave like ``OR`` and searched the title only."""
+        make_task(title="pending high", description="no keyword here", status="pending", priority="high")
+        make_task(title="completed low", description="hidden burndown note", status="completed", priority="low")
+        make_task(title="pending low", description="no keyword here", status="pending", priority="low")
+    
+        combined = client.get("/tasks", params={"status": "pending", "priority": "low"}).json()
+>       assert combined["total"] == 1
+E       assert 3 == 1
+
+tests\test_regression.py:51: AssertionError
+________________ test_bug_04_unknown_task_returns_a_clean_404 _________________
+
+client = <starlette.testclient.TestClient object at 0x000002495AAE28B0>
+
+    def test_bug_04_unknown_task_returns_a_clean_404(client: TestClient) -> None:
+        """A missing row must not surface as an HTTP 500 with internals."""
+        response = client.get("/tasks/987654")
+    
+>       assert response.status_code == 404
+E       assert 500 == 404
+E        +  where 500 = <Response [500 Internal Server Error]>.status_code
+
+tests\test_regression.py:63: AssertionError
+__________ test_bug_06_due_dates_with_an_offset_are_converted_to_utc __________
+
+client = <starlette.testclient.TestClient object at 0x000002495AAE3460>
+
+    def test_bug_06_due_dates_with_an_offset_are_converted_to_utc(client: TestClient) -> None:
+        """A client timezone offset used to be dropped, shifting the instant."""
+        response = client.post(
+            "/tasks",
+            json={"title": "Plan the release", "due_date": "2026-10-05T09:30:00+02:00"},
+        )
+    
+>       assert response.status_code == 201
+E       assert 200 == 201
+E        +  where 200 = <Response [200 OK]>.status_code
+
+tests\test_regression.py:75: AssertionError
+__________ test_bug_05_read_endpoints_do_not_issue_one_query_per_row __________
+
+client = <starlette.testclient.TestClient object at 0x000002495AAE2580>
+make_task = <function make_task.<locals>.factory at 0x000002495AC61010>
+make_comment = <function make_comment.<locals>.factory at 0x000002495AC60300>
+query_log = ['SELECT count(*) AS count_1 \nFROM (SELECT tasks.id AS tasks_id, tasks.title AS tasks_title, tasks.description AS tas...s.body AS comments_body, comments.created_at AS comments_created_at \nFROM comments \nWHERE ? = comments.task_id', ...]
+
+    def test_bug_05_read_endpoints_do_not_issue_one_query_per_row(
+        client: TestClient,
+        make_task,
+        make_comment,
+        query_log: list,
+    ) -> None:
+        """The SQL statement count must not grow with the size of the page."""
+        commented = make_task(title="Task with comments")
+        make_comment(commented, body="first")
+        make_comment(commented, body="second")
+        for index in range(20):
+            make_task(title=f"Task {index}")
+    
+        query_log.clear()
+        small_page = client.get("/tasks", params={"limit": 1})
+        small_page_statement_count = len(query_log)
+    
+        query_log.clear()
+        large_page = client.get("/tasks", params={"limit": 25})
+        large_page_statement_count = len(query_log)
+    
+        assert small_page.status_code == large_page.status_code == 200
+        assert small_page.json()["items"][0]["comment_count"] == 2
+        assert [item["comment_count"] for item in large_page.json()["items"]] == [2] + [0] * 20
+>       assert small_page_statement_count == large_page_statement_count
+E       assert 3 == 23
+
+tests\test_regression.py:111: AssertionError
+__________________________ test_full_task_lifecycle ___________________________
+
+client = <starlette.testclient.TestClient object at 0x000002495AAE16A0>
+
+    def test_full_task_lifecycle(client: TestClient) -> None:
+        """Create -> read -> update -> delete -> gone."""
+        created = client.post(
+            "/tasks",
+            json={
+                "title": "Fix the login flow",
+                "description": "Users are logged out after 5 minutes",
+                "priority": "high",
+            },
+        )
+>       assert created.status_code == 201, created.text
+E       AssertionError: {"id":1,"title":"Fix the login flow","description":"Users are logged out after 5 minutes","status":"pending","priority":"high","due_date":null,"created_at":"2026-09-29T08:23:09.025475","updated_at":"2026-09-29T08:23:09.025508","comment_count":0}
+E       assert 200 == 201
+E        +  where 200 = <Response [200 OK]>.status_code
+
+tests\test_tasks.py:22: AssertionError
+________________________ test_patch_rejects_null_title ________________________
+
+client = <starlette.testclient.TestClient object at 0x000002495AAE07C0>
+make_task = <function make_task.<locals>.factory at 0x000002495AB34250>
+
+    def test_patch_rejects_null_title(client: TestClient, make_task) -> None:
+        """A title may not be blanked out through the API."""
+        task = make_task(title="Has a title")
+    
+        response = client.patch(f"/tasks/{task.id}", json={"title": None})
+    
+>       assert response.status_code == 422
+E       assert 500 == 422
+E        +  where 500 = <Response [500 Internal Server Error]>.status_code
+
+tests\test_tasks.py:85: AssertionError
+____________________ test_creating_a_task_trims_the_title _____________________
+
+client = <starlette.testclient.TestClient object at 0x000002495A85B350>
+
+    def test_creating_a_task_trims_the_title(client: TestClient) -> None:
+        response = client.post("/tasks", json={"title": "   Trim me   "})
+    
+>       assert response.status_code == 201
+E       assert 200 == 201
+E        +  where 200 = <Response [200 OK]>.status_code
+
+tests\test_tasks.py:91: AssertionError
+___ test_mutating_and_reading_unknown_tasks_returns_404[get-/tasks/424242] ____
+
+client = <starlette.testclient.TestClient object at 0x000002495AAE0C00>
+method = 'get', path = '/tasks/424242'
+
+    @pytest.mark.parametrize(
+        ("method", "path"),
+        [
+            ("get", "/tasks/424242"),
+            ("put", "/tasks/424242"),
+            ("patch", "/tasks/424242"),
+            ("delete", "/tasks/424242"),
+        ],
+    )
+    def test_mutating_and_reading_unknown_tasks_returns_404(
+        client: TestClient,
+        method: str,
+        path: str,
+    ) -> None:
+        kwargs = {"json": {"title": "Whatever"}} if method in {"put", "patch"} else {}
+        response = getattr(client, method)(path, **kwargs)
+    
+>       assert response.status_code == 404
+E       assert 500 == 404
+E        +  where 500 = <Response [500 Internal Server Error]>.status_code
+
+tests\test_tasks.py:161: AssertionError
+============================== warnings summary ===============================
+..\..\..\Roaming\Python\Python314\site-packages\fastapi\testclient.py:1
+  C:\Users\kolsu\AppData\Roaming\Python\Python314\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+..\..\..\Roaming\Python\Python314\site-packages\starlette\testclient.py:53
+  C:\Users\kolsu\AppData\Roaming\Python\Python314\site-packages\starlette\testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_api.py::test_post_task_returns_201_and_the_stored_resource
+FAILED tests/test_api.py::test_filters_are_combined_with_and - assert 3 == 1
+FAILED tests/test_api.py::test_search_matches_the_description - assert 0 == 1
+FAILED tests/test_api.py::test_search_combines_with_the_other_filters - asser...
+FAILED tests/test_crud.py::test_list_tasks_combines_filters_with_and - assert...
+FAILED tests/test_crud.py::test_list_tasks_search_covers_title_and_description
+FAILED tests/test_crud.py::test_task_update_schema_rejects_blank_title - Fail...
+FAILED tests/test_edge_cases.py::test_create_accepts_a_title_of_exactly_200_characters
+FAILED tests/test_edge_cases.py::test_create_normalises_timezone_aware_due_dates
+FAILED tests/test_edge_cases.py::test_create_accepts_a_description_of_exactly_2000_characters
+FAILED tests/test_edge_cases.py::test_patch_rejects_blank_titles[] - assert 2...
+FAILED tests/test_edge_cases.py::test_patch_rejects_blank_titles[   ] - asser...
+FAILED tests/test_edge_cases.py::test_patch_trims_the_title - AssertionError:...
+FAILED tests/test_edge_cases.py::test_patch_rejects_a_null_title - assert 500...
+FAILED tests/test_edge_cases.py::test_unknown_task_id_returns_404_not_500 - a...
+FAILED tests/test_edge_cases.py::test_error_responses_do_not_leak_internal_details
+FAILED tests/test_edge_cases.py::test_unicode_payloads_are_stored_verbatim - ...
+FAILED tests/test_edge_cases.py::test_null_description_and_due_date_round_trip
+FAILED tests/test_performance.py::test_list_statement_count_does_not_grow_with_the_page
+FAILED tests/test_performance.py::test_statistics_statement_count_is_constant
+FAILED tests/test_regression.py::test_bug_01_post_tasks_answers_201_created
+FAILED tests/test_regression.py::test_bug_02_update_payload_validates_the_title
+FAILED tests/test_regression.py::test_bug_02_update_also_trims_the_title - As...
+FAILED tests/test_regression.py::test_bug_03_filters_are_intersected_and_search_covers_the_description
+FAILED tests/test_regression.py::test_bug_04_unknown_task_returns_a_clean_404
+FAILED tests/test_regression.py::test_bug_06_due_dates_with_an_offset_are_converted_to_utc
+FAILED tests/test_regression.py::test_bug_05_read_endpoints_do_not_issue_one_query_per_row
+FAILED tests/test_tasks.py::test_full_task_lifecycle - AssertionError: {"id":...
+FAILED tests/test_tasks.py::test_patch_rejects_null_title - assert 500 == 422
+FAILED tests/test_tasks.py::test_creating_a_task_trims_the_title - assert 200...
+FAILED tests/test_tasks.py::test_mutating_and_reading_unknown_tasks_returns_404[get-/tasks/424242]
+31 failed, 71 passed, 2 warnings in 4.56s

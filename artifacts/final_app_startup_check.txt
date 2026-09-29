@@ -1,0 +1,8 @@
+starting: python -m uvicorn app.main:app --port 63950 (default DATABASE_URL)
+[PASS] uvicorn starts with the default file database and /health answers
+        payload: {'status': 'ok', 'service': 'Week3 Backend Debugging API', 'version': '1.0.0'}
+[PASS] week3_tasks.db was created by the startup hook
+[PASS] no traceback in the server output
+removed the week3_tasks.db created by this check
+--------------------------------------------------------------------------------
+checks failed: 0
