@@ -22,7 +22,12 @@ def _require_task(db: Session, task_id: int) -> models.Task:
     return task
 
 
-@router.post("", response_model=schemas.TaskRead, summary="Create a task")
+@router.post(
+    "",
+    response_model=schemas.TaskRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a task",
+)
 def create_task(payload: schemas.TaskCreate, db: Session = Depends(get_db)) -> schemas.TaskRead:
     """Create a new task."""
     task = crud.create_task(db, payload)
