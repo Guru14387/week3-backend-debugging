@@ -58,7 +58,7 @@ def list_tasks(
         limit=limit,
     )
     return schemas.TaskList(
-        items=[crud.to_task_read(db, task) for task in items],
+        items=crud.to_task_reads(db, items),
         total=total,
         skip=skip,
         limit=limit,

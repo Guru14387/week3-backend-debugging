@@ -7,8 +7,9 @@ only deal with HTTP concerns (status codes, response models).
 from __future__ import annotations
 
 import enum
+from collections.abc import Sequence
 
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session
 
 from app import models, schemas
@@ -96,10 +97,37 @@ def list_tasks(
     return list(items), total
 
 
+def count_comments_by_task(db: Session, task_ids: Sequence[int]) -> dict[int, int]:
+    """Return ``{task_id: comment_count}`` in a single aggregate query.
+
+    Doing this per row was the N+1 bottleneck: a page of *n* tasks used to issue
+    *n* extra ``SELECT`` statements.
+    """
+    if not task_ids:
+        return {}
+    rows = (
+        db.query(models.Comment.task_id, func.count(models.Comment.id))
+        .filter(models.Comment.task_id.in_(list(task_ids)))
+        .group_by(models.Comment.task_id)
+        .all()
+    )
+    return {task_id: amount for task_id, amount in rows}
+
+
+def to_task_reads(db: Session, tasks: Sequence[models.Task]) -> list[schemas.TaskRead]:
+    """Serialise a page of tasks with exactly one extra query for the counters."""
+    counts = count_comments_by_task(db, [task.id for task in tasks])
+    return [
+        schemas.TaskRead.model_validate(task).model_copy(
+            update={"comment_count": counts.get(task.id, 0)}
+        )
+        for task in tasks
+    ]
+
+
 def to_task_read(db: Session, task: models.Task) -> schemas.TaskRead:
-    """Serialise a task, including the number of comments attached to it."""
-    read = schemas.TaskRead.model_validate(task)
-    return read.model_copy(update={"comment_count": len(task.comments)})
+    """Serialise a single task, including the number of comments attached to it."""
+    return to_task_reads(db, [task])[0]
 
 
 def replace_task(db: Session, task: models.Task, payload: schemas.TaskCreate) -> models.Task:
@@ -150,27 +178,42 @@ def list_comments(db: Session, task_id: int) -> list[models.Comment]:
 
 
 def get_statistics(db: Session) -> schemas.TaskStatistics:
-    """Aggregate counters describing the whole task backlog."""
-    tasks = db.query(models.Task).all()
+    """Aggregate counters describing the whole task backlog.
+
+    Every figure is produced by the database in a constant number of queries - the
+    previous version loaded all tasks and touched ``Task.comments`` per row (N+1).
+    """
+    total = db.query(func.count(models.Task.id)).scalar() or 0
+    completed = (
+        db.query(func.count(models.Task.id))
+        .filter(models.Task.status == models.TaskStatus.COMPLETED.value)
+        .scalar()
+        or 0
+    )
+    overdue = (
+        db.query(func.count(models.Task.id))
+        .filter(
+            models.Task.due_date.is_not(None),
+            models.Task.due_date < models.utcnow(),
+            models.Task.status != models.TaskStatus.COMPLETED.value,
+        )
+        .scalar()
+        or 0
+    )
+    total_comments = db.query(func.count(models.Comment.id)).scalar() or 0
 
     by_status = {status.value: 0 for status in models.TaskStatus}
+    for status_value, amount in (
+        db.query(models.Task.status, func.count(models.Task.id)).group_by(models.Task.status)
+    ):
+        by_status[status_value] = amount
+
     by_priority = {priority.value: 0 for priority in models.Priority}
-    total_comments = 0
-    overdue = 0
-    now = models.utcnow()
+    for priority_value, amount in (
+        db.query(models.Task.priority, func.count(models.Task.id)).group_by(models.Task.priority)
+    ):
+        by_priority[priority_value] = amount
 
-    for task in tasks:
-        by_status[task.status] = by_status.get(task.status, 0) + 1
-        by_priority[task.priority] = by_priority.get(task.priority, 0) + 1
-
-        comments = task.comments
-        total_comments += len(comments)
-
-        if task.due_date is not None and task.due_date < now and task.status != models.TaskStatus.COMPLETED.value:
-            overdue += 1
-
-    total = len(tasks)
-    completed = by_status.get(models.TaskStatus.COMPLETED.value, 0)
     return schemas.TaskStatistics(
         total=total,
         completed=completed,
@@ -184,6 +227,7 @@ def get_statistics(db: Session) -> schemas.TaskStatistics:
 
 
 __all__ = [
+    "count_comments_by_task",
     "create_comment",
     "create_task",
     "delete_task",
@@ -193,5 +237,6 @@ __all__ = [
     "list_tasks",
     "replace_task",
     "to_task_read",
+    "to_task_reads",
     "update_task",
 ]
