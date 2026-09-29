@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Annotated
 
-from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, field_validator
 
 from app.models import Priority, TaskStatus
 
@@ -56,11 +56,19 @@ class TaskCreate(APIModel):
 class TaskUpdate(APIModel):
     """Payload for ``PATCH /tasks/{task_id}`` - every field is optional."""
 
-    title: str | None = Field(default=None, max_length=MAX_TITLE_LENGTH)
+    title: Title | None = None
     description: Description = None
     status: TaskStatus | None = None
     priority: Priority | None = None
     due_date: DueDate = None
+
+    @field_validator("title", mode="before")
+    @classmethod
+    def _reject_null_title(cls, value: object) -> object:
+        """``null`` would violate the NOT NULL constraint, so reject it early."""
+        if value is None:
+            raise ValueError("title cannot be null - omit the field to keep the current title")
+        return value
 
 
 class CommentCreate(APIModel):
