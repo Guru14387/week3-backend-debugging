@@ -73,17 +73,9 @@ def task_statistics(db: Session = Depends(get_db)) -> schemas.TaskStatistics:
 
 @router.get("/{task_id}", response_model=schemas.TaskRead, summary="Get one task")
 def read_task(task_id: int, db: Session = Depends(get_db)) -> schemas.TaskRead:
-    """Return a single task."""
-    try:
-        task = crud.get_task(db, task_id)
-        return crud.to_task_read(db, task)
-    except HTTPException:
-        raise
-    except Exception as exc:  # noqa: BLE001 - defensive catch-all around the lookup
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Unable to retrieve task {task_id}: {exc}",
-        ) from exc
+    """Return a single task; answers ``404`` when the identifier is unknown."""
+    task = _require_task(db, task_id)
+    return crud.to_task_read(db, task)
 
 
 @router.put("/{task_id}", response_model=schemas.TaskRead, summary="Replace a task")

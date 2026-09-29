@@ -44,13 +44,12 @@ def create_task(db: Session, payload: schemas.TaskCreate) -> models.Task:
     return task
 
 
-def get_task(db: Session, task_id: int) -> models.Task:
-    """Return the task with ``task_id``."""
-    return db.query(models.Task).filter(models.Task.id == task_id).one()
-
-
 def get_task_or_none(db: Session, task_id: int) -> models.Task | None:
-    """Return the task with ``task_id`` or ``None`` when it does not exist."""
+    """Return the task with ``task_id`` or ``None`` when it does not exist.
+
+    ``Query.one_or_none()`` is used on purpose: ``Query.one()`` would raise
+    ``NoResultFound`` for an unknown identifier and turn a plain 404 into a 500.
+    """
     return db.query(models.Task).filter(models.Task.id == task_id).one_or_none()
 
 
@@ -189,7 +188,6 @@ __all__ = [
     "create_task",
     "delete_task",
     "get_statistics",
-    "get_task",
     "get_task_or_none",
     "list_comments",
     "list_tasks",
