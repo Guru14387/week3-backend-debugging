@@ -26,7 +26,17 @@ def _validate_title(value: object) -> object:
 
 
 def _normalise_due_date(value: object) -> object:
-    """Store timestamps as naive UTC so comparisons never mix aware/naive values."""
+    """Store timestamps as naive UTC so comparisons never mix aware/naive values.
+
+    The request body always delivers the value as a string, so the offset has to be
+    parsed here. SQLite drops ``tzinfo`` when the value is stored, which would
+    silently shift the instant by the offset sent by the client.
+    """
+    if isinstance(value, str):
+        try:
+            value = datetime.fromisoformat(value)
+        except ValueError:
+            return value  # let the regular "invalid date" validation report it
     if isinstance(value, datetime) and value.tzinfo is not None:
         return value.astimezone(timezone.utc).replace(tzinfo=None)
     return value
