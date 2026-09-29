@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import enum
 
-from sqlalchemy import or_
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from app import models, schemas
@@ -59,17 +59,23 @@ def _build_filter(
     priority: models.Priority | None,
     q: str | None,
 ):
-    """Translate the query-string arguments into a SQLAlchemy filter clause."""
+    """Translate the query-string arguments into a single ``AND`` filter clause."""
     conditions = []
     if status is not None:
         conditions.append(models.Task.status == _as_column_value(status))
     if priority is not None:
         conditions.append(models.Task.priority == _as_column_value(priority))
     if q:
-        conditions.append(models.Task.title.like(f"%{q}%"))
+        pattern = f"%{q}%"
+        conditions.append(
+            or_(
+                models.Task.title.ilike(pattern),
+                models.Task.description.ilike(pattern),
+            )
+        )
     if not conditions:
         return None
-    return or_(*conditions)
+    return and_(*conditions)
 
 
 def list_tasks(
