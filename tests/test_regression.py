@@ -65,6 +65,25 @@ def test_bug_04_unknown_task_returns_a_clean_404(client: TestClient) -> None:
     assert "No row was found" not in response.text
 
 
+def test_bug_06_due_dates_with_an_offset_are_converted_to_utc(client: TestClient) -> None:
+    """A client timezone offset used to be dropped, shifting the instant."""
+    response = client.post(
+        "/tasks",
+        json={"title": "Plan the release", "due_date": "2026-10-05T09:30:00+02:00"},
+    )
+
+    assert response.status_code == 201
+    assert response.json()["due_date"] == "2026-10-05T07:30:00"
+    assert client.get(f"/tasks/{response.json()['id']}").json()["due_date"] == "2026-10-05T07:30:00"
+
+
+def test_bug_06_invalid_due_dates_are_still_rejected(client: TestClient) -> None:
+    """The offset handling must not swallow ordinary validation errors."""
+    response = client.post("/tasks", json={"title": "Broken date", "due_date": "not-a-date"})
+
+    assert response.status_code == 422
+
+
 def test_bug_05_read_endpoints_do_not_issue_one_query_per_row(
     client: TestClient,
     make_task,
