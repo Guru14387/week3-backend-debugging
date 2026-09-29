@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import enum
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -29,7 +29,7 @@ class Priority(enum.StrEnum):
 
 def utcnow() -> datetime:
     """Return a naive UTC timestamp (SQLite cannot store tz-aware datetimes)."""
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 class Task(Base):
@@ -61,7 +61,7 @@ class Task(Base):
         onupdate=utcnow,
     )
 
-    comments: Mapped[list["Comment"]] = relationship(
+    comments: Mapped[list[Comment]] = relationship(
         back_populates="task",
         cascade="all, delete-orphan",
         lazy="select",

@@ -111,7 +111,7 @@ def count_comments_by_task(db: Session, task_ids: Sequence[int]) -> dict[int, in
         .group_by(models.Comment.task_id)
         .all()
     )
-    return {task_id: amount for task_id, amount in rows}
+    return dict(rows)
 
 
 def to_task_reads(db: Session, tasks: Sequence[models.Task]) -> list[schemas.TaskRead]:
